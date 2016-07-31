@@ -19,10 +19,10 @@ def getAllLayers(font, selected=True):
 	else:
 		glyphs = font.glyphs
 
-	allLayers = []	
+	allLayers = []
 	for glyph in glyphs:
 		allLayers += glyph.layers
-	
+
 	return allLayers
 
 def wrapMain(func):
@@ -35,14 +35,16 @@ def wrapMain(func):
 		finally:
 			font.enableUpdateInterface() # re-enables UI updates in Font View
 	return wrapper
-		
+
 
 def processAllLayersMain(process,  selected=True, *args, **kwds):
 	@wraps(process)
 	@wrapMain
 	def main(font, *args, **kwds):
 		allLayers = getAllLayers(font, selected=selected);
+		results = []
 		for layer in allLayers:
-			process(layer, *args, **kwds)
+			results.append(process(layer, *args, **kwds))
+		return results
 	return main
 
