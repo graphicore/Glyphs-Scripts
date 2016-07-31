@@ -80,14 +80,14 @@ def getQuadrants(bounds, node, p=False):
     for frac in range(10): # 1/1 1/2 1/3 1/4
         size = complex(size.real * .5, size.imag * .5)
         offset = size = complex(
-            size.real * (1 if quadrant in (2, 3) else -1)
-          , size.imag * (1 if quadrant in (0, 3) else -1)
+            size.real * (1 if quadrant in (0, 3) else -1)
+          , size.imag * (1 if quadrant in (0, 1) else -1)
         )
 
         center += offset
 
 
-        posToCenter = center - vector;
+        posToCenter = vector - center;
         if p:
             print  'offset', offset, abs(offset), cmath.phase(offset)
             print 'center', center
