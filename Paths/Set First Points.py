@@ -2,10 +2,29 @@
 # -*- coding: utf-8 -*-
 __doc__="""
 Sort points and make the first point the first in the path.
+
+If Correct Path Correction broke it, this may be able to repair it again.
+Also, in some fringe cases this breaks interpolation, but, it never breaks
+interpolation compatibility.
+
+In cases where there is an ambiguity between compatible choices, this may
+pick the wrong one, then the interpolation is twisted and scrambled.
+
+This is NOT save to run on all glyphs. You'll have to check for interpolation
+problems. But, it can greatly help in cases where starting points are
+positioned badly to restore interpolation.
+
+
+TODO:
+If we run this and "Sort Paths" we could then do an inter layer analysis
+on the ambigous paths and come up with ways to make them compatible.
+Shouldn't be that hard then. This assumes that we have fully compatible
+layers.
+
+
 """
 
 from itertools import cycle
-from functools import partial
 import math, cmath
 
 # It's quite ironic that we need boilerplate code to import boilerplate.py:
@@ -16,141 +35,113 @@ if parentDir not in sys.path:
 from boilerplate import wrapLayerProcessor, processAllLayersMain
 
 
-def getSignature(nodesCycle, node):
-    """ Signature is relative to the node, so it stays the same, no matter
-    what the start point of the contour is
-    we take this as an arbitrary sort factor
-    """
-    types = {
-        CURVE: 0
-      , LINE: 1
-      , OFFCURVE: 2
-    }
-    signature = []
-    for current in nodesCycle:
-        if not signature:
-            if current is not node:
-                continue
-            # start at node
-        elif current is node:
-            # stop when node is there the second time
-            break
-        signature.append(types[current.type])
-    return tuple(signature)
+class NodesInfo(object):
+    def __init__(self, path):
+        self.cycle = cycle(path.nodes)
+        self._signatures = {}
 
-def getRelativeChange(nodesCycle, node):
-    last = complex(node.x, node.y);
-    changes = []
-    for current in nodesCycle:
-        if not changes:
-            if current is not node:
-                continue
-            # start at node
-        elif current is node:
-            # stop when node is there the second time
-            break
-        currentVector = complex(current.x, current.y) - last;
-        changes.append( ( abs(currentVector), cmath.phase(currentVector) ) )
-        last = currentVector;
-    return changes;
+    def getSignature(self, node):
+        signature = self._signatures.get(node, None)
+        if signature is None:
+            signature = self._getSignature(node)
+            self._signatures[node] = signature
+        return signature
 
-def getQuadrants(bounds, node, p=False):
-    quadrants = []
-    vector = complex(node.x, node.y)
-    size = complex(bounds.size.width, bounds.size.height)
-    center = complex(bounds.origin.x, bounds.origin.y)
-    quaterCircle = cmath.pi * 0.5
-    fullCircle = 2 * cmath.pi
-    # quadrant:
-    # 1|0
-    # ---
-    # 2|3
-    ql = (
-        (0, 3)
-      , (1, 2)
-
-    )
-
-    if p:
-        print 'initial center', center, 'first center:', center + size
-        print 'size', size, abs(size), cmath.phase(size)
-        print 'vector', vector
-
-    quadrant = 0
-    for frac in range(10): # 1/1 1/2 1/3 1/4
-        size = complex(size.real * .5, size.imag * .5)
-        offset = size = complex(
-            size.real * (1 if quadrant in (0, 3) else -1)
-          , size.imag * (1 if quadrant in (0, 1) else -1)
-        )
-
-        center += offset
-
-
-        posToCenter = vector - center;
-        if p:
-            print  'offset', offset, abs(offset), cmath.phase(offset)
-            print 'center', center
-            print quadrant, 'postocenter', posToCenter, cmath.phase(posToCenter)
-            a  = (cmath.phase(posToCenter) + fullCircle) % fullCircle
-            b = a / quaterCircle
-            c = round(b)
-            d = int(c)
-            print a, b, c, d
-        quadrant = ql[0 if posToCenter.real >= 0 else 1][0 if posToCenter.imag >= 0 else 1]
-        if p:
-            print 'quadrant', quadrant
-        quadrants.append(quadrant);
-    return tuple(quadrants)
-
-
-def nodeSortKey (bounds, nodesCycle, node):
-    """ Note: when the signature is identical for different nodes, it is
-    very hard to find a meaningful order. If we don't find it the interpolation
-    is broken. even worse, it will look OK for glyphs, there will be no
-    warning!
-
-    What we do for now is printing a message that there are ambigous options
-    for first points.
-    """
-    signature = getSignature(nodesCycle, node)
-    # relativeChange = getRelativeChange(nodesCycle, node)
-    vector = complex(node.y, node.x)
-
-    quadrants = getQuadrants(bounds, node)
-
-    return (signature, quadrants, abs(vector), cmath.phase(vector), node.x, node.y)
-
-
+    def _getSignature(self, node):
+        """ Signature is relative to the node, so it stays the same, no matter
+        what the start point of the contour is
+        we take this as an arbitrary sort factor
+        """
+        types = {
+            CURVE: 0
+          , LINE: 1
+          , OFFCURVE: 2
+        }
+        signature = []
+        for current in self.cycle:
+            if not signature:
+                if current is not node:
+                    continue
+                # start at node
+            elif current is node:
+                # stop when node is there the second time
+                break
+            signature.append(types[current.type])
+        return tuple(signature)
 
 def unifyStartPoint(path):
-    nodesCycle = cycle(path.nodes)
-    sortKeyFunc = partial(nodeSortKey, path.bounds, nodesCycle)
-    nodes = sorted([n for n in path.nodes if n.type != OFFCURVE], key=sortKeyFunc)
+    nodesInfo = NodesInfo(path)
+    nodes = allNodes = sorted([n for n in path.nodes if n.type != OFFCURVE] \
+                                            , key=nodesInfo.getSignature)
+    if not nodes:
+        return True
 
-    #for i, node in enumerate(nodes):
-    #    print i, '######\n', getRelativeChange(nodesCycle, node)
+    # check if there is an unambigous node:
+    # remember, nodes is sorted by signature, so we will get the same
+    # signatures subsequently
+    countSignatures = {}
+    currentSignature = nodesInfo.getSignature(nodes[0])
+    currentNode = nodes[0]
+    count = 0
+    for node in nodes[1:]:
+        signature = nodesInfo.getSignature(node)
+        if signature == currentSignature:
+            count += 1
+        elif count == 0:
+            found = True
+            break
+        else:
+            count = 0
+            currentSignature = signature
+            currentNode = node
+    if count == 0:
+        # first unambious choice
+        currentNode.makeNodeFirst()
+        return True
 
-    if len(path.nodes) <= 14:
-        node = nodes[0]
-        print node.x, node.y, path.bounds
-        print getQuadrants(path.bounds, nodes[0], True)
+    # So far all attempts I made in chosing from ambigous nodes where
+    # prone to errors in relation to the other paths. But, with compatible
+    # paths, we'll pick nodes in a way that they will interpolate.
+    # Could be scrampled, though.
 
-    if nodes:
-        nodes[0].makeNodeFirst()
-        if len(nodes) > 1 and getSignature(nodesCycle, nodes[0]) == getSignature(nodesCycle, nodes[0]):
-            return True
+    # get the least ambigous signature first
+    signatureNodes = {}
+    # cluster by signature
+    for node in nodes:
+        signature = nodesInfo.getSignature(node)
+        if signature not in signatureNodes:
+            signatureNodes[signature] = []
+        signatureNodes[signature].append(node)
+
+    nodes = sorted(signatureNodes.values(), \
+            key=lambda nodes: (len(nodes), nodesInfo.getSignature(nodes[0])))
+    # This may have only two nodes, but it may also have all the
+    # non-off-curve points of the path. Unfortunately, when sorting
+    # by node position, it is not in all interpolation cases quaranteed
+    # that the nodes meet their equivalent on the other layers.
+    # if we would compare between the layers, we may find it easier to
+    # make a good choice. Of course, we'd need to have some trust into the
+    # path order of the other layer, and that is hard without having a
+    # definite, correct point order ;-)
+    nodes = nodes[0];
+
+    # I tried *a lot* also much more complex key funcs here and
+    # the most stable I could come up with was rounded coordinates.
+    # -y is a preference on having first nodes at the top.
+    # Though, depending in the path this may be a better or worse choice.
+    nodes = sorted(nodes, key=lambda node: (-round(node.y), round(node.x)))
+    nodes[0].makeNodeFirst()
     return False
 
 
 @processAllLayersMain
 @wrapLayerProcessor
 def main( layer ):
-    print layer.name, '\n____________________'
     for i, path in enumerate(layer.paths):
-        ambigous = unifyStartPoint(path)
-        if ambigous:
-            print 'WARNING: Ambigous first node. Please check:', layer.parent.name, 'Layer', layer.name, 'Path:', i
+        sucess = unifyStartPoint(path)
+        if not sucess:
+            print 'WARNING: The picked node was ambigous, please check', \
+                    layer.parent.name, 'Layer', layer.name, 'Path:', i
 
 if __name__ == '__main__':
     import GlyphsApp
