@@ -28,7 +28,7 @@ def getAllLayers(font, selected=True):
 def wrapMain(func):
 	@wraps(func)
 	def wrapper(Glyphs, *args, **kwds):
-		font = Glyphs.font; # frontmost font
+		font = Glyphs.font # frontmost font
 		font.disableUpdateInterface() # suppresses UI updates in Font View
 		try:
 			return func(font, *args, **kwds)
