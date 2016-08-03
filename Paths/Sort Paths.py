@@ -11,7 +11,7 @@ This also sorts by signature, the implication is that, if your contours have
 wrong starting points between layers, the sort result may not be interpolation
 compatible.
 
-Current Best Pracice: run after "Correct Path Direction all Layers"
+Current Best Practice: run after "Correct Path Direction all Layers"
 """
 
 # It's quite ironic that we need boilerplate code to import boilerplate.py:
@@ -33,7 +33,7 @@ def magnitude(path):
 
     signature = tuple(len(s) for s in path.segments)
     # by "sorting" the rotations of signature, we become independent from
-    # the actual order of the points. Its irrelevant if we pick the biggest
+    # the actual order of the points. It's irrelevant if we pick the biggest
     # signature or the smallest, it's only important that we pick always
     # the same signature. ALSO: some or all rotations may be identical.
     biggestSig = signature
@@ -46,8 +46,8 @@ def magnitude(path):
     return (
         0 - len(path) # most points
       , 0 - counts[CURVE] # most curve points
-      , 0 - counts[LINE] # most line poinst
-      , 0 - counts[OFFCURVE] # most offcurve points
+      , 0 - counts[LINE] # most line points
+      , 0 - counts[OFFCURVE] # most off-curve points
       , signature
       , path.direction
       , path.bounds.origin.x # left most

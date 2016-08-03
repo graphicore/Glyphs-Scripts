@@ -17,7 +17,7 @@ positioned badly to restore interpolation.
 
 TODO:
 If we run this and "Sort Paths" we could then do an inter layer analysis
-on the ambigous paths and come up with ways to make them compatible.
+on the ambiguous paths and come up with ways to make them compatible.
 Shouldn't be that hard then. This assumes that we have fully compatible
 layers.
 
@@ -76,7 +76,7 @@ def unifyStartPoint(path):
     if not nodes:
         return True
 
-    # check if there is an unambigous node:
+    # check if there is an unambiguous node:
     # remember, nodes is sorted by signature, so we will get the same
     # signatures subsequently
     countSignatures = {}
@@ -95,16 +95,16 @@ def unifyStartPoint(path):
             currentSignature = signature
             currentNode = node
     if count == 0:
-        # first unambious choice
+        # first unambiguous choice
         currentNode.makeNodeFirst()
         return True
 
-    # So far all attempts I made in chosing from ambigous nodes where
+    # So far all attempts I made in choosing from ambiguous nodes where
     # prone to errors in relation to the other paths. But, with compatible
     # paths, we'll pick nodes in a way that they will interpolate.
-    # Could be scrampled, though.
+    # Could be scrambled, though.
 
-    # get the least ambigous signature first
+    # get the least ambiguous signature first
     signatureNodes = {}
     # cluster by signature
     for node in nodes:
@@ -117,7 +117,7 @@ def unifyStartPoint(path):
             key=lambda nodes: (len(nodes), nodesInfo.getSignature(nodes[0])))
     # This may have only two nodes, but it may also have all the
     # non-off-curve points of the path. Unfortunately, when sorting
-    # by node position, it is not in all interpolation cases quaranteed
+    # by node position, it is not in all interpolation cases guaranteed
     # that the nodes meet their equivalent on the other layers.
     # if we would compare between the layers, we may find it easier to
     # make a good choice. Of course, we'd need to have some trust into the
@@ -125,10 +125,10 @@ def unifyStartPoint(path):
     # definite, correct point order ;-)
     nodes = nodes[0];
 
-    # I tried *a lot* also much more complex key funcs here and
+    # I tried *a lot* also much more complex key functions here and
     # the most stable I could come up with was rounded coordinates.
     # -y is a preference on having first nodes at the top.
-    # Though, depending in the path this may be a better or worse choice.
+    # Depending on the path, this may be a better or worse choice.
     nodes = sorted(nodes, key=lambda node: (-round(node.y), round(node.x)))
     nodes[0].makeNodeFirst()
     return False
